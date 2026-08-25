@@ -1,0 +1,540 @@
+---
+title: "Initial Data Quality Check: Building Recovery from Discharge to Growth and Engagement (BRIDGE) Trial"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 6
+    toc_collapsed: no
+    toc_float: no
+---
+
+```{r setup, include=FALSE}
+# # Default taken from R notebook behavior: when knitting, wd will always be location of notebook
+# base_dir <- '..'
+# Sys.setenv(PEDSNET_SKIP_REQUEST_EXECUTION=1)
+# tryCatch(source('../site/run.R'),
+#          error = function (e) message(e)) # May not be able to make db connection
+# 
+# # Set to "local" to read data from ../results, or another value to read from db
+# data_source <- if_else(config('execution_mode') == 'distribution', 'local', 'not_local')
+
+##############################################################
+library(argos)
+library(srcr)
+library(stringr)
+library(DBI)
+library(purrr)
+library(tibble) #' includes the view function
+
+library(argos)
+library(srcr)
+library(stringr)
+library(RPresto)
+library(assertthat)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(DBI)
+library(dbplyr)
+library(lubridate)
+library(readr)
+require(tidyr)
+require(knitr)
+require(kableExtra)
+require(stringr)
+require(tibble)
+require(ggplot2)
+require(gtsummary)
+require(tidyverse)
+require(reactable)
+require(squba)
+require(ggiraph)
+require(UpSetR)
+require(grid)
+require(ggiraph)
+
+##############################################################
+
+require(tidyr)
+require(knitr)
+require(kableExtra)
+require(stringr)
+require(tibble)
+require(ggplot2)
+require(gtsummary)
+require(tidyverse)
+require(reactable)
+require(squba)
+require(ggiraph)
+require(UpSetR)
+require(grid)
+require(gt)
+require(RColorBrewer)
+require(labelled)
+require(countmaskr)
+
+get_results <- function(tbl_name) {
+  if (data_source == 'local') {
+    rslt <- read_csv(paste0('../results/', tbl_name, '.csv'))
+  }
+  else {
+    rslt <- results_tbl(tbl_name) %>% collect()
+  }
+rslt
+}
+
+prettify_kable <- function(data) {
+  rslt <- data %>% kable(digits = 2, format.args = list(big.mark = ','))
+  if (knitr::is_html_output()) rslt <- rslt %>%
+    kable_styling(bootstrap_options = c("striped", "hover")) %>%
+    column_spec(1, bold = F, border_right = T)
+  rslt
+}
+
+prettify_kable2 <- function(data) {
+  rslt <- data %>% kable(digits = 2, format.args = list(big.mark = ','))
+  if (knitr::is_html_output()) rslt <- rslt %>%
+    kable_styling(bootstrap_options = c("striped", "hover")) %>%
+      scroll_box(width = "800px", height = "600px")
+  rslt
+}
+
+prettify_kable3 <- function(data) {
+  rslt <- data %>% kable(digits = 4, format.args = list(big.mark = ','))
+  if (knitr::is_html_output()) rslt <- rslt %>%
+    kable_styling(bootstrap_options = c("striped", "hover")) %>%
+    column_spec(1, bold = F, border_right = T)
+  rslt
+}
+
+################################################################################
+
+base_dir<-'..'
+source(file.path(base_dir, 'setup', 'trino_patch.R'))
+source(file.path(base_dir, 'code', 'funs.R'))
+source(Sys.getenv('PEDSNET_TRINO_HTTR'))
+
+# ssri_session<-argos$new('inspire_session')$init_session(
+#                                                            db_src = srcr(Sys.getenv('PEDSNET_TRINO_V61')),
+#                                                            vocabulary_schema = 'v61_vocabulary',
+#                                                            results_schema = 'ssri_suicide_v61',
+#                                                            cdm = 'pedsnet',
+#                                                            table_case = 'lower',
+#                                                            results_name_tag = '',
+#                                                            db_trace = TRUE,
+#                                                            retain_intermediates = TRUE)
+# 
+# set_argos_default(ssri_session)
+
+aden_session<-argos$new('inspire_session')$init_session(
+                                                           db_src = srcr(Sys.getenv('PEDSNET_TRINO_V62')),
+                                                           vocabulary_schema = 'v62_vocabulary',
+                                                           results_schema = 'bridge_tasian_v62',
+                                                           cdm = 'pedsnet',
+                                                           table_case = 'lower',
+                                                           results_name_tag = '',
+                                                           db_trace = TRUE,
+                                                           retain_intermediates = TRUE)
+
+set_argos_default(aden_session)
+
+
+attrition <- results_tbl('attrition_cohort') %>% collect()
+cohort <- results_tbl('bridge_cohort_w_outcomes') %>% collect() %>%
+  # select(-age_group) %>%
+  # mutate(age_group = case_when(age < 5L ~ '00_to_<05',
+  #                                age < 9L ~ '05_to_<12',
+  #                                age < 18L ~ '12_to_<18',
+  #                                age < 22L ~ '18_to_<22',
+  #                                age >= 22L ~ '22_Plus'
+  #   )) %>%
+  mutate(age = as.numeric(age),
+         anorectal_malformation = as.numeric(anorectal_malformation),
+         esophageal_atresia = as.numeric(esophageal_atresia),
+         gastroschisis = as.numeric(gastroschisis),
+         congenital_diaphragmatic_hernia = as.numeric(congenital_diaphragmatic_hernia),
+         hirschsprung_disease = as.numeric(hirschsprung_disease),
+         unplanned_visit_days_180 = as.numeric(unplanned_visit_days_180),
+         n_unique_unplanned_hosps_180 = as.numeric(n_unique_unplanned_hosps_180),
+         planned_visit_days_180 = as.numeric(planned_visit_days_180),
+         n_unique_planned_hosps_180 = as.numeric(n_unique_planned_hosps_180),
+         icu_visit_days_180 = as.numeric(icu_visit_days_180),
+         n_unique_icu_stays_180 = as.numeric(n_unique_icu_stays_180),  
+         unplanned_visit_days_365 = as.numeric(unplanned_visit_days_365),
+         n_unique_unplanned_hosps_365 = as.numeric(n_unique_unplanned_hosps_365),
+         planned_visit_days_365 = as.numeric(planned_visit_days_365),
+         n_unique_planned_hosps_365 = as.numeric(n_unique_planned_hosps_365),
+         icu_visit_days_365 = as.numeric(icu_visit_days_365),
+         n_unique_icu_stays_365 = as.numeric(n_unique_icu_stays_365))
+
+#'------------------------------------------------------------------------------
+# standardize color scheme
+sites <- attrition %>% distinct(site) %>% pull()
+color_length <- length(sites)
+site_palette <- colorRampPalette(brewer.pal(8, "Accent"))(color_length)
+site_colors <- setNames(site_palette, sites)
+
+```
+
+# Confidentiality
+
+**Please treat the contents of this report as confidential, and do not
+redistribute beyond PEDSnet staff and the requester.**
+
+# Notes and Data Source
+* **Investigator:** Greg Tasian
+* **Institution:** CHOP
+* **Title:** Building Recovery from Discharge to Growth and Engagement (BRIDGE) Trial
+* **Data Source:** pedsnet_dcc_v62 (2026-07)
+* The index diagnosis date was defined as the earliest inpatient stay meeting the study cohort criteria.
+* Index diagnosis types were categorized based on a hierarchy, when multiple diagnosis types existed. From highest to lowest priority:
+  * Congenital Diaphragmatic Hernia
+  * Esophageal Atresia
+  * Anorectal Malformation
+  * Hirschsprung Disease
+  * Gastroschisis
+* Outcomes:
+  * Unplanned hospitalizations were defined as hospitalizations preceded by an Emergency Department visit.
+  * Planned hospitalizations were defined as hospitalizations without a preceding Emergency Department visit.
+  * ICU stays were defined as visits to the PICU, NICU, or CICU.
+  * Outcomes were examined up to 180 days and 365 days after the index diagnosis **discharge date.**
+    * For patients with index dates in 2025: We were only able to examine outcomes occurring up to 365 days later as of **5/31/2025**; we could only examine outcomes occurring up to 180 days later as of **12/2/2025**. (The 2026-07 database only covers dates through 5/31/2026.)
+
+# Patient Attrition
+
+* In-person visits include any outpatient, inpatient, or ED physician visits
+  * Inpatient hospital stay (9201); Inpatient Hospital Stay - Ongoing (2000001532); ED Admit to Inpatient Stay (2000000048); Observation Stay (2000000088); ED (9203); Ambulatory/Outpatient Physician Visit (9202); Telemedicine (581399); Non-Acute Institutional Stay (44814710); Long Term Care Visit (42898160)
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+attrition %>%
+  filter(site=='total') %>%
+  select(step_number, attrition_step, num_pts, prop_retained_prior)%>%
+  mutate(prop_retained_prior=as.character(round(prop_retained_prior,2)))%>%
+  gt()%>%
+  fmt_number(decimals = 0)
+
+```
+
+# Patient Attrition by Site
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+op<-ca_output(attrition %>%
+                filter(site!='total'),
+              log_scale = TRUE)
+op[[2]]
+make_interactive_squba(op[[1]])
+
+
+```
+
+# Cohort Demographics and Outcomes by Year of Index Diagnosis Date
+
+## Cohort Demographics by Year of Index Diagnosis Date
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+var_label(cohort) <- list(
+  site = 'Health System',
+  year = 'Year of Index Inpatient Diagnosis',
+  sex_cat = 'Sex',
+  raceeth_cat = 'Race/Ethnicity',
+  age_group = 'Age Group at Index Inpatient Diagnosis',
+  two_plus_conds_within_dx_type = 'Has ≥2 condition records within a diagnosis type',
+  three_plus_conds_within_dx_type = 'Has ≥3 condition records within a diagnosis type',
+  index_dx_type_hierarchy = 'Index inpatient diagnosis type',
+  any_unplanned_hosp_180 = 'Has ≥1 unplanned hospitalizations within 180 days after inpatient diagnosis discharge',
+  any_unplanned_hosp_365 = 'Has ≥1 unplanned hospitalizations within 365 days after inpatient diagnosis discharge',
+  any_planned_hosp_180 = 'Has ≥1 planned hospitalizations within 180 days after inpatient diagnosis discharge',
+  any_planned_hosp_365 = 'Has ≥1 planned hospitalizations within 365 days after inpatient diagnosis discharge',
+  any_icu_180 = 'Has ≥1 ICU visits within 180 days after inpatient diagnosis discharge',
+  any_icu_365 = 'Has ≥1 ICU visits within 365 days after inpatient diagnosis discharge',
+  age = 'Age at Index Inpatient Diagnosis (Years)',
+  
+  unplanned_visit_days_180 = 'Total unplanned hospitalization days within 180 days after inpatient diagnosis discharge',
+  unplanned_visit_days_365 = 'Total unplanned hospitalization days within 365 days after inpatient diagnosis discharge',
+  n_unique_unplanned_hosps_180 = 'Total planned hospitalizations within 180 days after inpatient diagnosis discharge',
+  n_unique_unplanned_hosps_365 = 'Total planned hospitalizations within 365 days after inpatient diagnosis discharge',
+  
+  planned_visit_days_180 = 'Total planned hospitalization days within 180 days after inpatient diagnosis discharge',
+  planned_visit_days_365 = 'Total planned hospitalization days within 365 days after inpatient diagnosis discharge',
+  n_unique_planned_hosps_180 = 'Total planned hospitalizations within 180 days after inpatient diagnosis discharge',
+  n_unique_planned_hosps_365 = 'Total planned hospitalizations within 365 days after inpatient diagnosis discharge',
+                          
+  icu_visit_days_180 = 'Total days in the ICU within 180 days after inpatient diagnosis discharge',
+  icu_visit_days_365 = 'Total days in the ICU within 365 days after inpatient diagnosis discharge',
+  n_unique_icu_stays_180 = 'Total ICU stays within 180 days after inpatient diagnosis discharge',
+  n_unique_icu_stays_365 = 'Total ICU stays within 365 days after inpatient diagnosis discharge'
+)
+
+cohort_demog_by_year <- cohort %>%
+  tbl_summary(by = year,
+              include = c(site,
+                          year,
+                          sex_cat,
+                          raceeth_cat,
+                          age_group,
+                          
+                          # anorectal_malformation,
+                          # esophageal_atresia,
+                          # gastroschisis,
+                          # congenital_diaphragmatic_hernia,
+                          # hirschsprung_disease,
+                          # index_dx_type,
+                          index_dx_type_hierarchy,
+                          two_plus_conds_within_dx_type,
+                          three_plus_conds_within_dx_type,
+
+                          any_unplanned_hosp_180,
+                          any_unplanned_hosp_365,
+                          
+                          any_planned_hosp_180,
+                          any_planned_hosp_365,
+                          
+                          any_icu_180,
+                          any_icu_365
+                          )
+              ) %>%
+    modify_table_body(
+    ~ .x %>%
+      mutate(
+        stat_1 = gsub("^([0-4]) .*$", "<5", stat_1),
+        stat_2 = gsub("^([0-4]) .*$", "<5", stat_2),
+        stat_3 = gsub("^([0-4]) .*$", "<5", stat_3),
+        stat_4 = gsub("^([0-4]) .*$", "<5", stat_4),
+        stat_5 = gsub("^([0-4]) .*$", "<5", stat_5),
+        stat_6 = gsub("^([0-4]) .*$", "<5", stat_6)
+      )
+  )
+
+cohort_demog_by_year
+
+```
+
+## Cohort Outcomes by Year of Index Diagnosis Date: Means and Standard Deviations
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+cohort_summary_means_by_year <- cohort %>%
+  tbl_summary(by=year,
+              type = list(icu_visit_days_180 ~ "continuous"),
+              include = c(age,
+                          
+                          unplanned_visit_days_180,
+                          unplanned_visit_days_365,
+                          
+                          n_unique_unplanned_hosps_180,
+                          n_unique_unplanned_hosps_365,
+                          
+                          planned_visit_days_180,
+                          planned_visit_days_365,
+                          
+                          n_unique_planned_hosps_180,
+                          n_unique_planned_hosps_365,
+                          
+                          icu_visit_days_180,
+                          icu_visit_days_365,
+                          
+                          n_unique_icu_stays_180,
+                          n_unique_icu_stays_365
+                          ),
+              statistic = list(all_continuous() ~ "{mean} ({sd})"))
+  # add_difference(everything() ~ "smd") %>%
+  # modify_column_hide(conf.low)
+
+cohort_summary_means_by_year
+
+
+```
+
+# Cohort Demographics and Outcomes by Site
+
+## Cohort Demographics by Site
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+cohort_demog_by_site <- cohort %>%
+  tbl_summary(by=site,
+              include = c(year,
+                          sex_cat,
+                          raceeth_cat,
+                          age_group,
+
+                          # anorectal_malformation,
+                          # esophageal_atresia,
+                          # gastroschisis,
+                          # congenital_diaphragmatic_hernia,
+                          # hirschsprung_disease,
+                          # index_dx_type,
+                          index_dx_type_hierarchy,
+                          two_plus_conds_within_dx_type,
+                          three_plus_conds_within_dx_type,
+                          
+                          any_unplanned_hosp_180,
+                          any_unplanned_hosp_365,
+                          
+                          any_planned_hosp_180,
+                          any_planned_hosp_365,
+                          
+                          any_icu_180,
+                          any_icu_365
+                          )
+              ) %>%
+  modify_table_body(
+    ~ .x %>%
+      mutate(
+        stat_1 = gsub("^([0-4]) .*$", "<5", stat_1),
+        stat_2 = gsub("^([0-4]) .*$", "<5", stat_2),
+        stat_3 = gsub("^([0-4]) .*$", "<5", stat_3),
+        stat_4 = gsub("^([0-4]) .*$", "<5", stat_4),
+        stat_5 = gsub("^([0-4]) .*$", "<5", stat_5),
+        stat_6 = gsub("^([0-4]) .*$", "<5", stat_6),
+        stat_7 = gsub("^([0-4]) .*$", "<5", stat_7),
+        stat_8 = gsub("^([0-4]) .*$", "<5", stat_8),
+        stat_9 = gsub("^([0-4]) .*$", "<5", stat_9),
+        stat_10 = gsub("^([0-4]) .*$", "<5", stat_10)
+      )
+  ) %>%
+  as_gt() %>%
+  tab_options(
+              table.font.size = px(14),
+              table.width = pct(100))
+
+cohort_demog_by_site
+```
+
+## Cohort Outcomes by Site: Means and Standard Deviations
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+cohort_summary_means_by_site <- cohort %>%
+  tbl_summary(by=site,
+              type = list(icu_visit_days_180 ~ "continuous"),
+              include = c(age,
+                          
+                          unplanned_visit_days_180,
+                          unplanned_visit_days_365,
+                          
+                          n_unique_unplanned_hosps_180,
+                          n_unique_unplanned_hosps_365,
+                          
+                          planned_visit_days_180,
+                          planned_visit_days_365,
+                          
+                          n_unique_planned_hosps_180,
+                          n_unique_planned_hosps_365,
+                          
+                          icu_visit_days_180,
+                          icu_visit_days_365,
+                          
+                          n_unique_icu_stays_180,
+                          n_unique_icu_stays_365
+                          ),
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) %>%
+  as_gt() %>%
+  tab_options(table.width = pct(100))
+  # add_difference(everything() ~ "smd") %>%
+  # modify_column_hide(conf.low)
+
+cohort_summary_means_by_site
+
+```
+
+
+# Cohort Demographics and Outcomes by Condition
+
+* Index diagnosis types were categorized based on a hierarchy, when multiple diagnosis types existed. From highest to lowest priority:
+  * Congenital Diaphragmatic Hernia
+  * Esophageal Atresia
+  * Anorectal Malformation
+  * Hirschsprung Disease
+  * Gastroschisis
+
+## Cohort Demographics by Condition
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+cohort_demog_by_cond <- cohort %>%
+    mutate(index_dx_type_hierarchy_str = case_when(index_dx_type_hierarchy=='congenital_diaphragmatic_hernia' ~ 'congenital\ndiaphragmatic\nhernia',
+                                                 index_dx_type_hierarchy=='anorectal_malformation' ~ 'anorectal\nmalformation',
+                                                 index_dx_type_hierarchy=='Hirschsprung_disease' ~ 'Hirschsprung\ndisease',
+                                                 index_dx_type_hierarchy=='gastroschisis' ~ 'gastroschisis',
+                                                 index_dx_type_hierarchy=='esophageal_atresia' ~ 'esophageal\natresia'
+                                                 )) %>%
+  tbl_summary(by = index_dx_type_hierarchy_str,
+              include = c(site,
+                          year,
+                          sex_cat,
+                          raceeth_cat,
+                          age_group,
+                          two_plus_conds_within_dx_type,
+                          three_plus_conds_within_dx_type,
+                          
+                          # anorectal_malformation,
+                          # esophageal_atresia,
+                          # gastroschisis,
+                          # congenital_diaphragmatic_hernia,
+                          # hirschsprung_disease,
+
+                          any_unplanned_hosp_180,
+                          any_unplanned_hosp_365,
+                          
+                          any_planned_hosp_180,
+                          any_planned_hosp_365,
+                          
+                          any_icu_180,
+                          any_icu_365
+                          )
+              ) #%>%
+  #   modify_table_body(
+  #   ~ .x %>%
+  #     mutate(
+  #       stat_1 = gsub("^([0-4]) .*$", "<5", stat_1),
+  #       stat_2 = gsub("^([0-4]) .*$", "<5", stat_2),
+  #       stat_3 = gsub("^([0-4]) .*$", "<5", stat_3),
+  #       stat_4 = gsub("^([0-4]) .*$", "<5", stat_4),
+  #       stat_5 = gsub("^([0-4]) .*$", "<5", stat_5)
+  #     )
+  # ) %>%
+
+cohort_demog_by_cond
+```
+
+## Cohort Outcomes by Condition: Means and Standard Deviations
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+cohort_summary_means_by_cond <- cohort %>%
+  mutate(index_dx_type_hierarchy_str = case_when(index_dx_type_hierarchy=='congenital_diaphragmatic_hernia' ~ 'congenital\ndiaphragmatic\nhernia',
+                                                 index_dx_type_hierarchy=='anorectal_malformation' ~ 'anorectal\nmalformation',
+                                                 index_dx_type_hierarchy=='Hirschsprung_disease' ~ 'Hirschsprung\ndisease',
+                                                 index_dx_type_hierarchy=='gastroschisis' ~ 'gastroschisis',
+                                                 index_dx_type_hierarchy=='esophageal_atresia' ~ 'esophageal\natresia'
+                                                 )) %>%
+  tbl_summary(by=index_dx_type_hierarchy_str,
+              type = list(icu_visit_days_180 ~ "continuous"),
+              include = c(age,
+                          
+                          unplanned_visit_days_180,
+                          unplanned_visit_days_365,
+                          
+                          n_unique_unplanned_hosps_180,
+                          n_unique_unplanned_hosps_365,
+                          
+                          planned_visit_days_180,
+                          planned_visit_days_365,
+                          
+                          n_unique_planned_hosps_180,
+                          n_unique_planned_hosps_365,
+                          
+                          icu_visit_days_180,
+                          icu_visit_days_365,
+                          
+                          n_unique_icu_stays_180,
+                          n_unique_icu_stays_365
+                          ),
+              statistic = list(all_continuous() ~ "{mean} ({sd})"))
+  # add_difference(everything() ~ "smd") %>%
+  # modify_column_hide(conf.low)
+
+cohort_summary_means_by_cond
+
+
+```
+
+
