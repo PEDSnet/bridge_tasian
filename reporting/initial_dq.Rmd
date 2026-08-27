@@ -142,6 +142,7 @@ set_argos_default(aden_session)
 
 
 attrition <- results_tbl('attrition_cohort') %>% collect()
+
 cohort <- results_tbl('bridge_cohort_w_outcomes') %>% collect() %>%
   # select(-age_group) %>%
   # mutate(age_group = case_when(age < 5L ~ '00_to_<05',
@@ -167,7 +168,18 @@ cohort <- results_tbl('bridge_cohort_w_outcomes') %>% collect() %>%
          planned_visit_days_365 = as.numeric(planned_visit_days_365),
          n_unique_planned_hosps_365 = as.numeric(n_unique_planned_hosps_365),
          icu_visit_days_365 = as.numeric(icu_visit_days_365),
-         n_unique_icu_stays_365 = as.numeric(n_unique_icu_stays_365))
+         n_unique_icu_stays_365 = as.numeric(n_unique_icu_stays_365)) %>%
+  mutate(hirschsprung_disease_conds = case_when(hirschsprung_disease_conds>0L ~ hirschsprung_disease_conds,
+                                                TRUE ~ 0L),
+         esophageal_atresia_conds = case_when(esophageal_atresia_conds>0L ~ esophageal_atresia_conds,
+                                                TRUE ~ 0L),
+         anorectal_malformation_conds = case_when(anorectal_malformation_conds>0L ~ anorectal_malformation_conds,
+                                                TRUE ~ 0L),
+         gastroschisis_conds = case_when(gastroschisis_conds>0L ~ gastroschisis_conds,
+                                                TRUE ~ 0L),
+         congenital_diaphragmatic_hernia_conds = case_when(congenital_diaphragmatic_hernia_conds>0L ~ congenital_diaphragmatic_hernia_conds,
+                                                TRUE ~ 0L))
+  
 
 #'------------------------------------------------------------------------------
 # standardize color scheme
@@ -230,9 +242,16 @@ make_interactive_squba(op[[1]])
 
 ```
 
-# Cohort Demographics and Outcomes by Year of Index Diagnosis Date
+# Cohort Demographics and Outcomes by Condition
 
-## Cohort Demographics by Year of Index Diagnosis Date
+* Index diagnosis types were categorized based on a hierarchy, when multiple diagnosis types existed. From highest to lowest priority:
+  * Congenital Diaphragmatic Hernia
+  * Esophageal Atresia
+  * Anorectal Malformation
+  * Hirschsprung Disease
+  * Gastroschisis
+
+## Cohort Demographics by Condition
 ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
 var_label(cohort) <- list(
   site = 'Health System',
@@ -240,8 +259,13 @@ var_label(cohort) <- list(
   sex_cat = 'Sex',
   raceeth_cat = 'Race/Ethnicity',
   age_group = 'Age Group at Index Inpatient Diagnosis',
-  two_plus_conds_within_dx_type = 'Has ≥2 condition records within a diagnosis type',
-  three_plus_conds_within_dx_type = 'Has ≥3 condition records within a diagnosis type',
+  two_plus_conds_within_dx_type = 'Has ≥2 condition records within a diagnosis type within 30 days after birth',
+  three_plus_conds_within_dx_type = 'Has ≥3 condition records within a diagnosis type within 30 days after birth',
+  hirschsprung_disease_conds = 'Total Hirschsprung Disease condition code counts within 30 days after birth',
+  esophageal_atresia_conds = 'Total Esophageal Atresia condition code counts within 30 days after birth',
+  anorectal_malformation_conds = 'Total Anorectal Malformation condition code counts within 30 days after birth',
+  gastroschisis_conds = 'Total Gastroschisis condition code counts within 30 days after birth',
+  congenital_diaphragmatic_hernia_conds = 'Total Congenital Diaphragmatic Hernia condition code counts within 30 days after birth',
   index_dx_type_hierarchy = 'Index inpatient diagnosis type',
   any_unplanned_hosp_180 = 'Has ≥1 unplanned hospitalizations within 180 days after inpatient diagnosis discharge',
   any_unplanned_hosp_365 = 'Has ≥1 unplanned hospitalizations within 365 days after inpatient diagnosis discharge',
@@ -267,57 +291,68 @@ var_label(cohort) <- list(
   n_unique_icu_stays_365 = 'Total ICU stays within 365 days after inpatient diagnosis discharge'
 )
 
-cohort_demog_by_year <- cohort %>%
-  tbl_summary(by = year,
-              include = c(site,
+cohort_demog_by_cond <- cohort %>%
+    mutate(index_dx_type_hierarchy_str = case_when(index_dx_type_hierarchy=='congenital_diaphragmatic_hernia' ~ 'congenital\ndiaphragmatic\nhernia',
+                                                 index_dx_type_hierarchy=='anorectal_malformation' ~ 'anorectal\nmalformation',
+                                                 index_dx_type_hierarchy=='Hirschsprung_disease' ~ 'Hirschsprung\ndisease',
+                                                 index_dx_type_hierarchy=='gastroschisis' ~ 'gastroschisis',
+                                                 index_dx_type_hierarchy=='esophageal_atresia' ~ 'esophageal\natresia'
+                                                 )) %>%
+  tbl_summary(by = index_dx_type_hierarchy_str,
+              include = c(
+                          site,
                           year,
                           sex_cat,
                           raceeth_cat,
-                          age_group,
-                          
-                          # anorectal_malformation,
-                          # esophageal_atresia,
-                          # gastroschisis,
-                          # congenital_diaphragmatic_hernia,
-                          # hirschsprung_disease,
-                          # index_dx_type,
-                          index_dx_type_hierarchy,
+                          #age_group,
                           two_plus_conds_within_dx_type,
                           three_plus_conds_within_dx_type,
 
                           any_unplanned_hosp_180,
                           any_unplanned_hosp_365,
-                          
+
                           any_planned_hosp_180,
                           any_planned_hosp_365,
-                          
+
                           any_icu_180,
                           any_icu_365
                           )
-              ) %>%
-    modify_table_body(
-    ~ .x %>%
-      mutate(
-        stat_1 = gsub("^([0-4]) .*$", "<5", stat_1),
-        stat_2 = gsub("^([0-4]) .*$", "<5", stat_2),
-        stat_3 = gsub("^([0-4]) .*$", "<5", stat_3),
-        stat_4 = gsub("^([0-4]) .*$", "<5", stat_4),
-        stat_5 = gsub("^([0-4]) .*$", "<5", stat_5),
-        stat_6 = gsub("^([0-4]) .*$", "<5", stat_6)
-      )
-  )
+              ) #%>%
+  #   modify_table_body(
+  #   ~ .x %>%
+  #     mutate(
+  #       stat_1 = gsub("^([0-4]) .*$", "<5", stat_1),
+  #       stat_2 = gsub("^([0-4]) .*$", "<5", stat_2),
+  #       stat_3 = gsub("^([0-4]) .*$", "<5", stat_3),
+  #       stat_4 = gsub("^([0-4]) .*$", "<5", stat_4),
+  #       stat_5 = gsub("^([0-4]) .*$", "<5", stat_5)
+  #     )
+  # ) %>%
 
-cohort_demog_by_year
-
+cohort_demog_by_cond
 ```
 
-## Cohort Outcomes by Year of Index Diagnosis Date: Means and Standard Deviations
+## Cohort Outcomes by Condition: Means and Standard Deviations
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
-cohort_summary_means_by_year <- cohort %>%
-  tbl_summary(by=year,
-              type = list(icu_visit_days_180 ~ "continuous"),
+
+cohort_summary_means_by_cond <- cohort %>%
+  mutate(index_dx_type_hierarchy_str = case_when(index_dx_type_hierarchy=='congenital_diaphragmatic_hernia' ~ 'congenital\ndiaphragmatic\nhernia',
+                                                 index_dx_type_hierarchy=='anorectal_malformation' ~ 'anorectal\nmalformation',
+                                                 index_dx_type_hierarchy=='Hirschsprung_disease' ~ 'Hirschsprung\ndisease',
+                                                 index_dx_type_hierarchy=='gastroschisis' ~ 'gastroschisis',
+                                                 index_dx_type_hierarchy=='esophageal_atresia' ~ 'esophageal\natresia'
+                                                 )) %>%
+  tbl_summary(by=index_dx_type_hierarchy_str,
+              #type = list(icu_visit_days_180 ~ "continuous"),
+              type = everything() ~ "continuous",
               include = c(age,
+                          
+                          # hirschsprung_disease_conds,
+                          # esophageal_atresia_conds,
+                          # anorectal_malformation_conds,
+                          # gastroschisis_conds,
+                          # congenital_diaphragmatic_hernia_conds,
                           
                           unplanned_visit_days_180,
                           unplanned_visit_days_365,
@@ -341,7 +376,7 @@ cohort_summary_means_by_year <- cohort %>%
   # add_difference(everything() ~ "smd") %>%
   # modify_column_hide(conf.low)
 
-cohort_summary_means_by_year
+cohort_summary_means_by_cond
 
 
 ```
@@ -353,46 +388,41 @@ cohort_summary_means_by_year
 
 cohort_demog_by_site <- cohort %>%
   tbl_summary(by=site,
-              include = c(year,
+              include = c(
+                          #year,
                           sex_cat,
-                          raceeth_cat,
-                          age_group,
+                          #raceeth_cat,
+                          #age_group,
 
-                          # anorectal_malformation,
-                          # esophageal_atresia,
-                          # gastroschisis,
-                          # congenital_diaphragmatic_hernia,
-                          # hirschsprung_disease,
-                          # index_dx_type,
-                          index_dx_type_hierarchy,
+                          #index_dx_type_hierarchy,
                           two_plus_conds_within_dx_type,
                           three_plus_conds_within_dx_type,
-                          
+
                           any_unplanned_hosp_180,
                           any_unplanned_hosp_365,
-                          
+
                           any_planned_hosp_180,
                           any_planned_hosp_365,
-                          
+
                           any_icu_180,
                           any_icu_365
                           )
               ) %>%
-  modify_table_body(
-    ~ .x %>%
-      mutate(
-        stat_1 = gsub("^([0-4]) .*$", "<5", stat_1),
-        stat_2 = gsub("^([0-4]) .*$", "<5", stat_2),
-        stat_3 = gsub("^([0-4]) .*$", "<5", stat_3),
-        stat_4 = gsub("^([0-4]) .*$", "<5", stat_4),
-        stat_5 = gsub("^([0-4]) .*$", "<5", stat_5),
-        stat_6 = gsub("^([0-4]) .*$", "<5", stat_6),
-        stat_7 = gsub("^([0-4]) .*$", "<5", stat_7),
-        stat_8 = gsub("^([0-4]) .*$", "<5", stat_8),
-        stat_9 = gsub("^([0-4]) .*$", "<5", stat_9),
-        stat_10 = gsub("^([0-4]) .*$", "<5", stat_10)
-      )
-  ) %>%
+  # modify_table_body(
+  #   ~ .x %>%
+  #     mutate(
+  #       stat_1 = gsub("^([0-4]) .*$", "<5", stat_1),
+  #       stat_2 = gsub("^([0-4]) .*$", "<5", stat_2),
+  #       stat_3 = gsub("^([0-4]) .*$", "<5", stat_3),
+  #       stat_4 = gsub("^([0-4]) .*$", "<5", stat_4),
+  #       stat_5 = gsub("^([0-4]) .*$", "<5", stat_5),
+  #       stat_6 = gsub("^([0-4]) .*$", "<5", stat_6),
+  #       stat_7 = gsub("^([0-4]) .*$", "<5", stat_7),
+  #       stat_8 = gsub("^([0-4]) .*$", "<5", stat_8),
+  #       stat_9 = gsub("^([0-4]) .*$", "<5", stat_9),
+  #       stat_10 = gsub("^([0-4]) .*$", "<5", stat_10)
+  #     )
+  # ) %>%
   as_gt() %>%
   tab_options(
               table.font.size = px(14),
@@ -406,8 +436,15 @@ cohort_demog_by_site
 ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
 cohort_summary_means_by_site <- cohort %>%
   tbl_summary(by=site,
-              type = list(icu_visit_days_180 ~ "continuous"),
+              #type = list(icu_visit_days_180 ~ "continuous"),
+              type = everything() ~ "continuous",
               include = c(age,
+                          
+                          # hirschsprung_disease_conds,
+                          # esophageal_atresia_conds,
+                          # anorectal_malformation_conds,
+                          # gastroschisis_conds,
+                          # congenital_diaphragmatic_hernia_conds,
                           
                           unplanned_visit_days_180,
                           unplanned_visit_days_365,
@@ -437,40 +474,23 @@ cohort_summary_means_by_site
 
 ```
 
+# Cohort Demographics and Outcomes by Year of Index Diagnosis Date
 
-# Cohort Demographics and Outcomes by Condition
-
-* Index diagnosis types were categorized based on a hierarchy, when multiple diagnosis types existed. From highest to lowest priority:
-  * Congenital Diaphragmatic Hernia
-  * Esophageal Atresia
-  * Anorectal Malformation
-  * Hirschsprung Disease
-  * Gastroschisis
-
-## Cohort Demographics by Condition
+## Cohort Demographics by Year of Index Diagnosis Date
 ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
 
-cohort_demog_by_cond <- cohort %>%
-    mutate(index_dx_type_hierarchy_str = case_when(index_dx_type_hierarchy=='congenital_diaphragmatic_hernia' ~ 'congenital\ndiaphragmatic\nhernia',
-                                                 index_dx_type_hierarchy=='anorectal_malformation' ~ 'anorectal\nmalformation',
-                                                 index_dx_type_hierarchy=='Hirschsprung_disease' ~ 'Hirschsprung\ndisease',
-                                                 index_dx_type_hierarchy=='gastroschisis' ~ 'gastroschisis',
-                                                 index_dx_type_hierarchy=='esophageal_atresia' ~ 'esophageal\natresia'
-                                                 )) %>%
-  tbl_summary(by = index_dx_type_hierarchy_str,
-              include = c(site,
-                          year,
+cohort_demog_by_year <- cohort %>%
+  tbl_summary(by = year,
+              include = c(
+                          #site,
+                          #year,
                           sex_cat,
-                          raceeth_cat,
-                          age_group,
+                          #raceeth_cat,
+                          #age_group,
+                          
+                          #index_dx_type_hierarchy,
                           two_plus_conds_within_dx_type,
                           three_plus_conds_within_dx_type,
-                          
-                          # anorectal_malformation,
-                          # esophageal_atresia,
-                          # gastroschisis,
-                          # congenital_diaphragmatic_hernia,
-                          # hirschsprung_disease,
 
                           any_unplanned_hosp_180,
                           any_unplanned_hosp_365,
@@ -489,26 +509,29 @@ cohort_demog_by_cond <- cohort %>%
   #       stat_2 = gsub("^([0-4]) .*$", "<5", stat_2),
   #       stat_3 = gsub("^([0-4]) .*$", "<5", stat_3),
   #       stat_4 = gsub("^([0-4]) .*$", "<5", stat_4),
-  #       stat_5 = gsub("^([0-4]) .*$", "<5", stat_5)
+  #       stat_5 = gsub("^([0-4]) .*$", "<5", stat_5),
+  #       stat_6 = gsub("^([0-4]) .*$", "<5", stat_6)
   #     )
-  # ) %>%
+  # )
 
-cohort_demog_by_cond
+cohort_demog_by_year
+
 ```
 
-## Cohort Outcomes by Condition: Means and Standard Deviations
+## Cohort Outcomes by Year of Index Diagnosis Date: Means and Standard Deviations
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
-cohort_summary_means_by_cond <- cohort %>%
-  mutate(index_dx_type_hierarchy_str = case_when(index_dx_type_hierarchy=='congenital_diaphragmatic_hernia' ~ 'congenital\ndiaphragmatic\nhernia',
-                                                 index_dx_type_hierarchy=='anorectal_malformation' ~ 'anorectal\nmalformation',
-                                                 index_dx_type_hierarchy=='Hirschsprung_disease' ~ 'Hirschsprung\ndisease',
-                                                 index_dx_type_hierarchy=='gastroschisis' ~ 'gastroschisis',
-                                                 index_dx_type_hierarchy=='esophageal_atresia' ~ 'esophageal\natresia'
-                                                 )) %>%
-  tbl_summary(by=index_dx_type_hierarchy_str,
-              type = list(icu_visit_days_180 ~ "continuous"),
+cohort_summary_means_by_year <- cohort %>%
+  tbl_summary(by=year,
+              #type = list(icu_visit_days_180 ~ "continuous"),
+              type = everything() ~ "continuous",
               include = c(age,
+                          
+                          # hirschsprung_disease_conds,
+                          # esophageal_atresia_conds,
+                          # anorectal_malformation_conds,
+                          # gastroschisis_conds,
+                          # congenital_diaphragmatic_hernia_conds,
                           
                           unplanned_visit_days_180,
                           unplanned_visit_days_365,
@@ -527,14 +550,18 @@ cohort_summary_means_by_cond <- cohort %>%
                           
                           n_unique_icu_stays_180,
                           n_unique_icu_stays_365
+                          
                           ),
               statistic = list(all_continuous() ~ "{mean} ({sd})"))
   # add_difference(everything() ~ "smd") %>%
   # modify_column_hide(conf.low)
 
-cohort_summary_means_by_cond
+cohort_summary_means_by_year
 
 
 ```
+
+
+
 
 

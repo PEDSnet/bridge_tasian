@@ -94,14 +94,15 @@ attr_site <- count_bysite(tbl = person,
 #' Get patients with >=1 diagnosis code for congenital diaphragmatic hernia, esophageal atresia,
 #' gastroschisis, Hirschsprung disease, or anorectal malformation
 
-all_dx_codes <- results_tbl('all_dx_codes')
+all_dx_codes <- results_tbl('all_dx_codes') %>%
+  filter(!concept_id %in% c(4140963L))
 
 bridge_conds <- get_conds(cohort = person,
                           codes = all_dx_codes,
                           study_start_date = as.Date(study_start_date),
                           study_end_date = as.Date(study_end_date),
-                          min_age = 0L,
-                          max_age = 99L
+                          min_days_after_birth = 0L,
+                          max_days_after_birth = 30L
                           )
 
 # bridge_conds %>% group_by(dx_type, site) %>% summarise(n=n()) %>% ungroup() %>%
@@ -111,7 +112,7 @@ bridge_cond_counts <- get_cond_counts(conds = bridge_conds)
 
 attr_site <- count_bysite(tbl = bridge_conds,
                           countcol = "person_id",
-                          stepname = paste0('Patients with ≥1 dx code for congenital diaphragmatic hernia, esophageal atresia, gastroschisis, Hirschsprung disease, or anorectal malformation'),
+                          stepname = paste0('Patients with ≥1 dx code for congenital diaphragmatic hernia, esophageal atresia, gastroschisis, Hirschsprung disease, or anorectal malformation within the first 30 days of life'),
                           stepnum = 2L,
                           prev_log = attr_site
                           )
@@ -131,15 +132,17 @@ attr_site <- count_bysite(tbl = inpatient_dx,
 )
 
 #' -----------------------------------------------------------------------------
-#' Diagnosis date between 2020-2025
+#' Earliest diagnosis date between 2020-2025
 
 dx_2020_2025 <- dx_time_filter(conds = inpatient_dx,
                                min_date = as.Date('2020-01-01'),
-                               max_date = as.Date('2025-12-31'))
+                               max_date = as.Date('2025-12-31'),
+                               min_days_after_birth = 0L,
+                               max_days_after_birth = 30L)
 
 attr_site <- count_bysite(tbl = dx_2020_2025,
                           countcol = "person_id",
-                          stepname = paste0('Patients with a diagnosis date between 2020 and 2025'),
+                          stepname = paste0('Patients with their earliest inpatient diagnosis date (from step 3) between 2020 and 2025'),
                           stepnum = 4L,
                           prev_log = attr_site
 )
@@ -147,17 +150,7 @@ attr_site <- count_bysite(tbl = dx_2020_2025,
 #' -----------------------------------------------------------------------------
 #' Get patients with any (in-person?) visit >=6 months after diagnosis/index hospitalization
 
-dx_time_w_index <- dx_2020_2025 %>%
-  group_by(person_id) %>%
-  mutate(index_date = min(as.Date(visit_start_date))) %>%
-  ungroup() %>%
-  filter(visit_start_date == index_date) %>%
-  group_by(person_id, index_date) %>%
-  summarise(index_date_end = max(as.Date(visit_end_date))) %>%
-  ungroup() %>%
-  add_site()
-
-visit_6m_post <- post_dx_visit_filter(conds = dx_time_w_index,
+visit_6m_post <- post_dx_visit_filter(conds = dx_2020_2025,
                                       visit_concepts = in_person_visit_concepts,
                                       days_post_min = 180L,
                                       study_end_date = as.Date(study_end_date))
@@ -172,7 +165,7 @@ attr_site <- count_bysite(tbl = visit_6m_post,
 #' -----------------------------------------------------------------------------
 #' Get patients with any (in-person?) visit >=12 months after diagnosis/index hospitalization  
 
-visit_12m_post <- post_dx_visit_filter(conds = dx_time_w_index,
+visit_12m_post <- post_dx_visit_filter(conds = dx_2020_2025,
                                        visit_concepts = in_person_visit_concepts,
                                        days_post_min = 365L,
                                        study_end_date = as.Date(study_end_date))
@@ -188,7 +181,7 @@ attr_site <- count_bysite(tbl = visit_12m_post,
 #' Final bridge cohort
 
 bridge_cohort <- visit_12m_post %>%
-  left_join(dx_time_w_index %>%
+  left_join(dx_2020_2025 %>%
               select(-site), by=c('person_id','index_date'))
 
 output_tbl(bridge_cohort, 'bridge_cohort')
@@ -210,14 +203,22 @@ output_tbl(attrition_results,
 #' Classify dx_type
 #' -----------------------------------------------------------------------------
 
-dx_type_info <- dx_2020_2025 %>%
+dx_type_info <- inpatient_dx %>%
+  select(condition_occurrence_id, visit_occurrence_id, person_id, dx_type, visit_start_date, visit_end_date) %>%
+  inner_join(dx_2020_2025 %>%
+               select(-site),
+             by=c('person_id',
+                  'visit_start_date'='index_date',
+                  'visit_end_date'='index_date_end')) %>%
   inner_join(results_tbl('bridge_cohort') %>% distinct(person_id), by=c('person_id')) %>%
-  group_by(person_id) %>%
-  mutate(min_dx_date = min(as.Date(visit_start_date))) %>%
-  ungroup() %>%
-  filter(visit_start_date==min_dx_date) %>%
+  rename(index_date = visit_start_date,
+         index_date_end = visit_end_date) %>%
+  # group_by(person_id) %>%
+  # mutate(min_dx_date = min(as.Date(visit_start_date))) %>%
+  # ungroup() %>%
+  # filter(visit_start_date==min_dx_date) %>%
   mutate(has_dx_type=1L) %>%
-  select(person_id, visit_start_date, dx_type, has_dx_type) %>%
+  select(person_id, index_date, dx_type, has_dx_type) %>%
   pivot_wider(names_from=c('dx_type'), values_from=c('has_dx_type'), values_fill=0) %>%
   mutate(index_dx_type = case_when(congenital_diaphragmatic_hernia+anorectal_malformation+Hirschsprung_disease+gastroschisis+esophageal_atresia == 1L &&
                                      congenital_diaphragmatic_hernia==1L ~ 'congenital_diaphragmatic_hernia',
@@ -319,7 +320,37 @@ demog <- get_core_demographics(cohort = results_tbl('bridge_cohort') %>%
 output_tbl(demog, 'bridge_cohort_demographics')
 
 
+#' -----------------------------------------------------------------------------
+#' Counts of all diagnosis codes
+#' -----------------------------------------------------------------------------
 
+bridge_cond_code_pat_counts <- results_tbl('bridge_cohort_demographics') %>%
+  select(person_id) %>%
+  inner_join(bridge_conds, by=c('person_id')) %>%
+  distinct(person_id, condition_type, dx_type) %>%
+  group_by(condition_type, dx_type) %>%
+  summarise(n_pats = n()) %>%
+  ungroup()
+
+bridge_cond_code_counts <- results_tbl('bridge_cohort_demographics') %>%
+  select(person_id) %>%
+  inner_join(bridge_conds, by=c('person_id')) %>%
+  group_by(condition_type, dx_type) %>%
+  summarise(n_conds = n()) %>%
+  ungroup()
+
+bridge_cond_pat_code_counts <- bridge_cond_code_counts %>%
+  left_join(bridge_cond_code_pat_counts, by=c('condition_type', 'dx_type')) %>%
+  full_join(all_dx_codes, by=c('condition_type'='concept_id', 'dx_type')) %>%
+  mutate(n_conds = case_when(is.na(n_conds) ~ 0L,
+                             TRUE ~ n_conds)) %>%
+  mutate(n_pats = case_when(is.na(n_pats) ~ 0L,
+                             TRUE ~ n_pats))
+
+output_tbl(bridge_cond_pat_code_counts, 'bridge_cond_pat_code_counts')
+
+
+write_csv(results_tbl('bridge_cond_pat_code_counts') %>% as_data_frame(), 'specs/bridge_cond_pat_code_counts.csv')
 
 #' -----------------------------------------------------------------------------
 #' Put the cohort together
@@ -327,8 +358,7 @@ output_tbl(demog, 'bridge_cohort_demographics')
 
 cohort_final <- results_tbl('bridge_cohort_demographics') %>%
   left_join(bridge_cond_counts, by=c('person_id')) %>%
-  left_join(results_tbl('bridge_cohort_w_dx_type') %>%
-              rename(index_date = visit_start_date), by=c('person_id', 'index_date')) %>%
+  left_join(results_tbl('bridge_cohort_w_dx_type'), by=c('person_id', 'index_date')) %>%
   left_join(results_tbl('cohort_w_unplanned_hosps_180') %>%
               rename(n_unique_unplanned_hosps_180 = n_unique_unplanned_hosps,
                      any_unplanned_hosp_180 = any_unplanned_hosp,

@@ -34,8 +34,8 @@ get_conds <- function(cohort,
                       codes,
                       study_start_date,
                       study_end_date,
-                      min_age = 0L,
-                      max_age = 22L,
+                      min_days_after_birth,
+                      max_days_after_birth,
                       cond_tbl = cdm_tbl('condition_occurrence'),
                       person_tbl = cdm_tbl('person')
 ) {
@@ -44,9 +44,9 @@ get_conds <- function(cohort,
     filter(as.Date(condition_start_date) >= study_start_date) %>%
     filter(as.Date(condition_start_date) <= study_end_date) %>%
     left_join(person_tbl %>% select(person_id, birth_date), by=c('person_id')) %>%
-    mutate(age = date_diff('day', as.Date(birth_date), as.Date(condition_start_date))/365.25) %>%
-    filter(age < max_age) %>%
-    filter(age >= min_age)
+    #mutate(age = date_diff('day', as.Date(birth_date), as.Date(condition_start_date))/365.25) %>%
+    filter(as.numeric(date_diff('day', as.Date(birth_date), as.Date(condition_start_date))) >= min_days_after_birth) %>%
+    filter(as.numeric(date_diff('day', as.Date(birth_date), as.Date(condition_start_date))) <= max_days_after_birth)
   
   cond_info <- conds %>%
     inner_join(codes %>%
@@ -92,12 +92,30 @@ inpatient_filter <- function(conds = bridge_conds,
 
 dx_time_filter <- function(conds = inpatient_dx,
                            min_date = as.Date('2020-01-01'),
-                           max_date = as.Date('2025-12-31')
+                           max_date = as.Date('2025-12-31'),
+                           min_days_after_birth,
+                           max_days_after_birth,
+                           person_tbl = cdm_tbl('person')
 ) {
   
   dx_time_filtered <- conds %>%
-    filter(as.Date(visit_start_date) >= as.Date(min_date)) %>%
-    filter(as.Date(visit_start_date) <= as.Date(max_date))
+    group_by(person_id) %>%
+    mutate(index_date = min(as.Date(visit_start_date))) %>%
+    ungroup() %>%
+    filter(visit_start_date == index_date) %>%
+    group_by(person_id, index_date) %>%
+    summarise(index_date_end = max(as.Date(visit_end_date))) %>%
+    ungroup() %>%
+    filter(as.Date(index_date) >= as.Date(min_date)) %>%
+    filter(as.Date(index_date) <= as.Date(max_date)) %>%
+    add_site() %>%
+    left_join(cdm_tbl('person') %>%
+                select(person_id, birth_date), by=c('person_id')) %>%
+    filter(as.numeric(date_diff('day', as.Date(birth_date), as.Date(index_date))) >= min_days_after_birth) %>%
+    filter(as.numeric(date_diff('day', as.Date(birth_date), as.Date(index_date))) <= max_days_after_birth) %>%
+    select(-birth_date)
+    #filter(as.Date(visit_start_date) >= as.Date(min_date)) %>%
+    #filter(as.Date(visit_start_date) <= as.Date(max_date))
   
   return(dx_time_filtered)
 }
