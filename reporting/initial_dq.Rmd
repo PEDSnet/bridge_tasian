@@ -288,7 +288,14 @@ var_label(cohort) <- list(
   icu_visit_days_180 = 'Total days in the ICU within 180 days after inpatient diagnosis discharge',
   icu_visit_days_365 = 'Total days in the ICU within 365 days after inpatient diagnosis discharge',
   n_unique_icu_stays_180 = 'Total ICU stays within 180 days after inpatient diagnosis discharge',
-  n_unique_icu_stays_365 = 'Total ICU stays within 365 days after inpatient diagnosis discharge'
+  n_unique_icu_stays_365 = 'Total ICU stays within 365 days after inpatient diagnosis discharge',
+  
+  median_planned_hosp_duration_180 = 'Median planned hospitalization duration within 180 days after inpatient diagnosis discharge',
+  median_planned_hosp_duration_365 = 'Median planned hospitalization duration within 365 days after inpatient diagnosis discharge',
+  median_unplanned_hosp_duration_180 = 'Median unplanned hospitalization duration within 180 days after inpatient diagnosis discharge',
+  median_unplanned_hosp_duration_365 = 'Median unplanned hospitalization duration within 365 days after inpatient diagnosis discharge',
+  median_icu_visit_duration_180 = 'Median ICU visit duration within 180 days after inpatient diagnosis discharge',
+  median_icu_visit_duration_365 = 'Median ICU visit duration within 365 days after inpatient diagnosis discharge'
 )
 
 cohort_demog_by_cond <- cohort %>%
@@ -332,11 +339,61 @@ cohort_demog_by_cond <- cohort %>%
 cohort_demog_by_cond
 ```
 
-## Cohort Outcomes by Condition: Means and Standard Deviations
+<!-- ## Cohort Outcomes by Condition: Means and Standard Deviations -->
+
+<!-- ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE} -->
+
+<!-- cohort_summary_means_by_cond <- cohort %>% -->
+<!--   mutate(index_dx_type_hierarchy_str = case_when(index_dx_type_hierarchy=='congenital_diaphragmatic_hernia' ~ 'congenital\ndiaphragmatic\nhernia', -->
+<!--                                                  index_dx_type_hierarchy=='anorectal_malformation' ~ 'anorectal\nmalformation', -->
+<!--                                                  index_dx_type_hierarchy=='Hirschsprung_disease' ~ 'Hirschsprung\ndisease', -->
+<!--                                                  index_dx_type_hierarchy=='gastroschisis' ~ 'gastroschisis', -->
+<!--                                                  index_dx_type_hierarchy=='esophageal_atresia' ~ 'esophageal\natresia' -->
+<!--                                                  )) %>% -->
+<!--   tbl_summary(by=index_dx_type_hierarchy_str, -->
+<!--               digits = all_continuous() ~ 2, -->
+<!--               #type = list(icu_visit_days_180 ~ "continuous"), -->
+<!--               type = everything() ~ "continuous", -->
+<!--               include = c(age, -->
+
+<!--                           # hirschsprung_disease_conds, -->
+<!--                           # esophageal_atresia_conds, -->
+<!--                           # anorectal_malformation_conds, -->
+<!--                           # gastroschisis_conds, -->
+<!--                           # congenital_diaphragmatic_hernia_conds, -->
+
+<!--                           unplanned_visit_days_180, -->
+<!--                           unplanned_visit_days_365, -->
+
+<!--                           n_unique_unplanned_hosps_180, -->
+<!--                           n_unique_unplanned_hosps_365, -->
+
+<!--                           planned_visit_days_180, -->
+<!--                           planned_visit_days_365, -->
+
+<!--                           n_unique_planned_hosps_180, -->
+<!--                           n_unique_planned_hosps_365, -->
+
+<!--                           icu_visit_days_180, -->
+<!--                           icu_visit_days_365, -->
+
+<!--                           n_unique_icu_stays_180, -->
+<!--                           n_unique_icu_stays_365 -->
+<!--                           ), -->
+<!--               statistic = list(all_continuous() ~ "{mean} ({sd})")) -->
+<!--   # add_difference(everything() ~ "smd") %>% -->
+<!--   # modify_column_hide(conf.low) -->
+
+<!-- cohort_summary_means_by_cond -->
+
+
+<!-- ``` -->
+
+## Cohort Outcomes by Condition: Medians and IQRs
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
 
-cohort_summary_means_by_cond <- cohort %>%
+cohort_summary_medians_by_cond <- cohort %>%
   mutate(index_dx_type_hierarchy_str = case_when(index_dx_type_hierarchy=='congenital_diaphragmatic_hernia' ~ 'congenital\ndiaphragmatic\nhernia',
                                                  index_dx_type_hierarchy=='anorectal_malformation' ~ 'anorectal\nmalformation',
                                                  index_dx_type_hierarchy=='Hirschsprung_disease' ~ 'Hirschsprung\ndisease',
@@ -344,224 +401,250 @@ cohort_summary_means_by_cond <- cohort %>%
                                                  index_dx_type_hierarchy=='esophageal_atresia' ~ 'esophageal\natresia'
                                                  )) %>%
   tbl_summary(by=index_dx_type_hierarchy_str,
+              digits = all_continuous() ~ 2,
               #type = list(icu_visit_days_180 ~ "continuous"),
               type = everything() ~ "continuous",
-              include = c(age,
-                          
-                          # hirschsprung_disease_conds,
-                          # esophageal_atresia_conds,
-                          # anorectal_malformation_conds,
-                          # gastroschisis_conds,
-                          # congenital_diaphragmatic_hernia_conds,
-                          
-                          unplanned_visit_days_180,
-                          unplanned_visit_days_365,
-                          
-                          n_unique_unplanned_hosps_180,
-                          n_unique_unplanned_hosps_365,
-                          
-                          planned_visit_days_180,
-                          planned_visit_days_365,
-                          
-                          n_unique_planned_hosps_180,
-                          n_unique_planned_hosps_365,
-                          
-                          icu_visit_days_180,
-                          icu_visit_days_365,
-                          
-                          n_unique_icu_stays_180,
-                          n_unique_icu_stays_365
-                          ),
-              statistic = list(all_continuous() ~ "{mean} ({sd})"))
-  # add_difference(everything() ~ "smd") %>%
-  # modify_column_hide(conf.low)
-
-cohort_summary_means_by_cond
-
-
-```
-
-# Cohort Demographics and Outcomes by Site
-
-## Cohort Demographics by Site
-```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
-
-cohort_demog_by_site <- cohort %>%
-  tbl_summary(by=site,
               include = c(
-                          #year,
-                          sex_cat,
-                          #raceeth_cat,
-                          #age_group,
+                median_planned_hosp_duration_180,
+                median_planned_hosp_duration_365,
+                median_unplanned_hosp_duration_180,
+                median_unplanned_hosp_duration_365,
+                median_icu_visit_duration_180,
+                median_icu_visit_duration_365
+                          ),
+              statistic = list(all_continuous() ~ "{median} ({p25}, {p75})"))
 
-                          #index_dx_type_hierarchy,
-                          two_plus_conds_within_dx_type,
-                          three_plus_conds_within_dx_type,
+cohort_summary_medians_by_cond
 
-                          any_unplanned_hosp_180,
-                          any_unplanned_hosp_365,
-
-                          any_planned_hosp_180,
-                          any_planned_hosp_365,
-
-                          any_icu_180,
-                          any_icu_365
-                          )
-              ) %>%
-  # modify_table_body(
-  #   ~ .x %>%
-  #     mutate(
-  #       stat_1 = gsub("^([0-4]) .*$", "<5", stat_1),
-  #       stat_2 = gsub("^([0-4]) .*$", "<5", stat_2),
-  #       stat_3 = gsub("^([0-4]) .*$", "<5", stat_3),
-  #       stat_4 = gsub("^([0-4]) .*$", "<5", stat_4),
-  #       stat_5 = gsub("^([0-4]) .*$", "<5", stat_5),
-  #       stat_6 = gsub("^([0-4]) .*$", "<5", stat_6),
-  #       stat_7 = gsub("^([0-4]) .*$", "<5", stat_7),
-  #       stat_8 = gsub("^([0-4]) .*$", "<5", stat_8),
-  #       stat_9 = gsub("^([0-4]) .*$", "<5", stat_9),
-  #       stat_10 = gsub("^([0-4]) .*$", "<5", stat_10)
-  #     )
-  # ) %>%
-  as_gt() %>%
-  tab_options(
-              table.font.size = px(14),
-              table.width = pct(100))
-
-cohort_demog_by_site
 ```
 
-## Cohort Outcomes by Site: Means and Standard Deviations
+<!-- # Cohort Demographics and Outcomes by Site -->
+
+<!-- ## Cohort Demographics by Site -->
+<!-- ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE} -->
+
+<!-- cohort_demog_by_site <- cohort %>% -->
+<!--   tbl_summary(by=site, -->
+<!--               include = c( -->
+<!--                           #year, -->
+<!--                           sex_cat, -->
+<!--                           #raceeth_cat, -->
+<!--                           #age_group, -->
+
+<!--                           #index_dx_type_hierarchy, -->
+<!--                           two_plus_conds_within_dx_type, -->
+<!--                           three_plus_conds_within_dx_type, -->
+
+<!--                           any_unplanned_hosp_180, -->
+<!--                           any_unplanned_hosp_365, -->
+
+<!--                           any_planned_hosp_180, -->
+<!--                           any_planned_hosp_365, -->
+
+<!--                           any_icu_180, -->
+<!--                           any_icu_365 -->
+<!--                           ) -->
+<!--               ) %>% -->
+<!--   # modify_table_body( -->
+<!--   #   ~ .x %>% -->
+<!--   #     mutate( -->
+<!--   #       stat_1 = gsub("^([0-4]) .*$", "<5", stat_1), -->
+<!--   #       stat_2 = gsub("^([0-4]) .*$", "<5", stat_2), -->
+<!--   #       stat_3 = gsub("^([0-4]) .*$", "<5", stat_3), -->
+<!--   #       stat_4 = gsub("^([0-4]) .*$", "<5", stat_4), -->
+<!--   #       stat_5 = gsub("^([0-4]) .*$", "<5", stat_5), -->
+<!--   #       stat_6 = gsub("^([0-4]) .*$", "<5", stat_6), -->
+<!--   #       stat_7 = gsub("^([0-4]) .*$", "<5", stat_7), -->
+<!--   #       stat_8 = gsub("^([0-4]) .*$", "<5", stat_8), -->
+<!--   #       stat_9 = gsub("^([0-4]) .*$", "<5", stat_9), -->
+<!--   #       stat_10 = gsub("^([0-4]) .*$", "<5", stat_10) -->
+<!--   #     ) -->
+<!--   # ) %>% -->
+<!--   as_gt() %>% -->
+<!--   tab_options( -->
+<!--               table.font.size = px(14), -->
+<!--               table.width = pct(100)) -->
+
+<!-- cohort_demog_by_site -->
+<!-- ``` -->
+
+<!-- ## Cohort Outcomes by Site: Means and Standard Deviations -->
+
+<!-- ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE} -->
+<!-- cohort_summary_means_by_site <- cohort %>% -->
+<!--   tbl_summary(by=site, -->
+<!--               digits = all_continuous() ~ 2, -->
+<!--               #type = list(icu_visit_days_180 ~ "continuous"), -->
+<!--               type = everything() ~ "continuous", -->
+<!--               include = c(age, -->
+
+<!--                           # hirschsprung_disease_conds, -->
+<!--                           # esophageal_atresia_conds, -->
+<!--                           # anorectal_malformation_conds, -->
+<!--                           # gastroschisis_conds, -->
+<!--                           # congenital_diaphragmatic_hernia_conds, -->
+
+<!--                           unplanned_visit_days_180, -->
+<!--                           unplanned_visit_days_365, -->
+
+<!--                           n_unique_unplanned_hosps_180, -->
+<!--                           n_unique_unplanned_hosps_365, -->
+
+<!--                           planned_visit_days_180, -->
+<!--                           planned_visit_days_365, -->
+
+<!--                           n_unique_planned_hosps_180, -->
+<!--                           n_unique_planned_hosps_365, -->
+
+<!--                           icu_visit_days_180, -->
+<!--                           icu_visit_days_365, -->
+
+<!--                           n_unique_icu_stays_180, -->
+<!--                           n_unique_icu_stays_365 -->
+<!--                           ), -->
+<!--               statistic = list(all_continuous() ~ "{mean} ({sd})")) %>% -->
+<!--   as_gt() %>% -->
+<!--   tab_options(table.width = pct(100)) -->
+<!--   # add_difference(everything() ~ "smd") %>% -->
+<!--   # modify_column_hide(conf.low) -->
+
+<!-- cohort_summary_means_by_site -->
+
+<!-- ``` -->
+
+## Cohort Outcomes by Site: Medians and IQRs
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
-cohort_summary_means_by_site <- cohort %>%
+
+cohort_summary_medians_by_site <- cohort %>%
   tbl_summary(by=site,
+              digits = all_continuous() ~ 2,
               #type = list(icu_visit_days_180 ~ "continuous"),
               type = everything() ~ "continuous",
-              include = c(age,
-                          
-                          # hirschsprung_disease_conds,
-                          # esophageal_atresia_conds,
-                          # anorectal_malformation_conds,
-                          # gastroschisis_conds,
-                          # congenital_diaphragmatic_hernia_conds,
-                          
-                          unplanned_visit_days_180,
-                          unplanned_visit_days_365,
-                          
-                          n_unique_unplanned_hosps_180,
-                          n_unique_unplanned_hosps_365,
-                          
-                          planned_visit_days_180,
-                          planned_visit_days_365,
-                          
-                          n_unique_planned_hosps_180,
-                          n_unique_planned_hosps_365,
-                          
-                          icu_visit_days_180,
-                          icu_visit_days_365,
-                          
-                          n_unique_icu_stays_180,
-                          n_unique_icu_stays_365
-                          ),
-              statistic = list(all_continuous() ~ "{mean} ({sd})")) %>%
-  as_gt() %>%
-  tab_options(table.width = pct(100))
-  # add_difference(everything() ~ "smd") %>%
-  # modify_column_hide(conf.low)
-
-cohort_summary_means_by_site
-
-```
-
-# Cohort Demographics and Outcomes by Year of Index Diagnosis Date
-
-## Cohort Demographics by Year of Index Diagnosis Date
-```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
-
-cohort_demog_by_year <- cohort %>%
-  tbl_summary(by = year,
               include = c(
-                          #site,
-                          #year,
-                          sex_cat,
-                          #raceeth_cat,
-                          #age_group,
-                          
-                          #index_dx_type_hierarchy,
-                          two_plus_conds_within_dx_type,
-                          three_plus_conds_within_dx_type,
+                median_planned_hosp_duration_180,
+                median_planned_hosp_duration_365,
+                median_unplanned_hosp_duration_180,
+                median_unplanned_hosp_duration_365,
+                median_icu_visit_duration_180,
+                median_icu_visit_duration_365
+                          ),
+              statistic = list(all_continuous() ~ "{median} ({p25}, {p75})"))
 
-                          any_unplanned_hosp_180,
-                          any_unplanned_hosp_365,
-                          
-                          any_planned_hosp_180,
-                          any_planned_hosp_365,
-                          
-                          any_icu_180,
-                          any_icu_365
-                          )
-              ) #%>%
-  #   modify_table_body(
-  #   ~ .x %>%
-  #     mutate(
-  #       stat_1 = gsub("^([0-4]) .*$", "<5", stat_1),
-  #       stat_2 = gsub("^([0-4]) .*$", "<5", stat_2),
-  #       stat_3 = gsub("^([0-4]) .*$", "<5", stat_3),
-  #       stat_4 = gsub("^([0-4]) .*$", "<5", stat_4),
-  #       stat_5 = gsub("^([0-4]) .*$", "<5", stat_5),
-  #       stat_6 = gsub("^([0-4]) .*$", "<5", stat_6)
-  #     )
-  # )
-
-cohort_demog_by_year
+cohort_summary_medians_by_site
 
 ```
 
-## Cohort Outcomes by Year of Index Diagnosis Date: Means and Standard Deviations
+<!-- # Cohort Demographics and Outcomes by Year of Index Diagnosis Date -->
+
+<!-- ## Cohort Demographics by Year of Index Diagnosis Date -->
+<!-- ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE} -->
+
+<!-- cohort_demog_by_year <- cohort %>% -->
+<!--   tbl_summary(by = year, -->
+<!--               include = c( -->
+<!--                           #site, -->
+<!--                           #year, -->
+<!--                           sex_cat, -->
+<!--                           #raceeth_cat, -->
+<!--                           #age_group, -->
+
+<!--                           #index_dx_type_hierarchy, -->
+<!--                           two_plus_conds_within_dx_type, -->
+<!--                           three_plus_conds_within_dx_type, -->
+
+<!--                           any_unplanned_hosp_180, -->
+<!--                           any_unplanned_hosp_365, -->
+
+<!--                           any_planned_hosp_180, -->
+<!--                           any_planned_hosp_365, -->
+
+<!--                           any_icu_180, -->
+<!--                           any_icu_365 -->
+<!--                           ) -->
+<!--               ) #%>% -->
+<!--   #   modify_table_body( -->
+<!--   #   ~ .x %>% -->
+<!--   #     mutate( -->
+<!--   #       stat_1 = gsub("^([0-4]) .*$", "<5", stat_1), -->
+<!--   #       stat_2 = gsub("^([0-4]) .*$", "<5", stat_2), -->
+<!--   #       stat_3 = gsub("^([0-4]) .*$", "<5", stat_3), -->
+<!--   #       stat_4 = gsub("^([0-4]) .*$", "<5", stat_4), -->
+<!--   #       stat_5 = gsub("^([0-4]) .*$", "<5", stat_5), -->
+<!--   #       stat_6 = gsub("^([0-4]) .*$", "<5", stat_6) -->
+<!--   #     ) -->
+<!--   # ) -->
+
+<!-- cohort_demog_by_year -->
+
+<!-- ``` -->
+
+<!-- ## Cohort Outcomes by Year of Index Diagnosis Date: Means and Standard Deviations -->
+
+<!-- ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE} -->
+<!-- cohort_summary_means_by_year <- cohort %>% -->
+<!--   tbl_summary(by=year, -->
+<!--               digits = all_continuous() ~ 2, -->
+<!--               #type = list(icu_visit_days_180 ~ "continuous"), -->
+<!--               type = everything() ~ "continuous", -->
+<!--               include = c(age, -->
+
+<!--                           # hirschsprung_disease_conds, -->
+<!--                           # esophageal_atresia_conds, -->
+<!--                           # anorectal_malformation_conds, -->
+<!--                           # gastroschisis_conds, -->
+<!--                           # congenital_diaphragmatic_hernia_conds, -->
+
+<!--                           unplanned_visit_days_180, -->
+<!--                           unplanned_visit_days_365, -->
+
+<!--                           n_unique_unplanned_hosps_180, -->
+<!--                           n_unique_unplanned_hosps_365, -->
+
+<!--                           planned_visit_days_180, -->
+<!--                           planned_visit_days_365, -->
+
+<!--                           n_unique_planned_hosps_180, -->
+<!--                           n_unique_planned_hosps_365, -->
+
+<!--                           icu_visit_days_180, -->
+<!--                           icu_visit_days_365, -->
+
+<!--                           n_unique_icu_stays_180, -->
+<!--                           n_unique_icu_stays_365 -->
+
+<!--                           ), -->
+<!--               statistic = list(all_continuous() ~ "{mean} ({sd})")) -->
+<!--   # add_difference(everything() ~ "smd") %>% -->
+<!--   # modify_column_hide(conf.low) -->
+
+<!-- cohort_summary_means_by_year -->
+
+
+<!-- ``` -->
+
+## Cohort Outcomes by Year of Index Diagnosis Date: Medians and IQRs
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
-cohort_summary_means_by_year <- cohort %>%
+
+cohort_summary_medians_by_year <- cohort %>%
   tbl_summary(by=year,
+              digits = all_continuous() ~ 2,
               #type = list(icu_visit_days_180 ~ "continuous"),
               type = everything() ~ "continuous",
-              include = c(age,
-                          
-                          # hirschsprung_disease_conds,
-                          # esophageal_atresia_conds,
-                          # anorectal_malformation_conds,
-                          # gastroschisis_conds,
-                          # congenital_diaphragmatic_hernia_conds,
-                          
-                          unplanned_visit_days_180,
-                          unplanned_visit_days_365,
-                          
-                          n_unique_unplanned_hosps_180,
-                          n_unique_unplanned_hosps_365,
-                          
-                          planned_visit_days_180,
-                          planned_visit_days_365,
-                          
-                          n_unique_planned_hosps_180,
-                          n_unique_planned_hosps_365,
-                          
-                          icu_visit_days_180,
-                          icu_visit_days_365,
-                          
-                          n_unique_icu_stays_180,
-                          n_unique_icu_stays_365
-                          
+              include = c(
+                median_planned_hosp_duration_180,
+                median_planned_hosp_duration_365,
+                median_unplanned_hosp_duration_180,
+                median_unplanned_hosp_duration_365,
+                median_icu_visit_duration_180,
+                median_icu_visit_duration_365
                           ),
-              statistic = list(all_continuous() ~ "{mean} ({sd})"))
-  # add_difference(everything() ~ "smd") %>%
-  # modify_column_hide(conf.low)
+              statistic = list(all_continuous() ~ "{median} ({p25}, {p75})"))
 
-cohort_summary_means_by_year
-
+cohort_summary_medians_by_year
 
 ```
-
-
 
 
 

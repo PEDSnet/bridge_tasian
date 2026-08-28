@@ -275,17 +275,25 @@ find_all_unplanned_hosps <- function(cohort = results_tbl('bridge_cohort'),
   all_ed_to_ip <- ed_to_ip_cid %>%
     full_join(occurs_before_after, by=c('visit_occurrence_id'='visit_occurrence_id_1')) %>%
     left_join(visit_tbl %>%
-                select(visit_occurrence_id, person_id, visit_start_date, visit_end_date, visit_concept_id),
+                select(visit_occurrence_id, person_id,
+                       visit_start_date, visit_end_date,
+                       visit_start_datetime, visit_end_datetime, visit_concept_id),
               by=c('visit_occurrence_id')) %>%
     rename(visit_occurrence_id_1 = visit_occurrence_id,
            visit_start_date_1 = visit_start_date,
            visit_end_date_1 = visit_end_date,
+           visit_start_datetime_1 = visit_start_datetime,
+           visit_end_datetime_1 = visit_end_datetime,
            visit_concept_id_1 = visit_concept_id) %>%
     left_join(visit_tbl %>%
-                select(visit_occurrence_id, visit_start_date, visit_end_date, visit_concept_id),
+                select(visit_occurrence_id,
+                       visit_start_date, visit_end_date,
+                       visit_start_datetime, visit_end_datetime, visit_concept_id),
               by=c('visit_occurrence_id_2'='visit_occurrence_id')) %>%
     rename(visit_start_date_2 = visit_start_date,
            visit_end_date_2 = visit_end_date,
+           visit_start_datetime_2 = visit_start_datetime,
+           visit_end_datetime_2 = visit_end_datetime,
            visit_concept_id_2 = visit_concept_id)
   
   #' cohort output
@@ -306,6 +314,20 @@ summarize_unplanned_hosps <- function(unplanned_hosps,
   
   unplanned_hosps <- unplanned_hosps %>%
     collect()
+  
+  #' Total visit duration
+  cohort_total_visit_duration <- unplanned_hosps %>%
+    distinct(person_id, index_date, visit_occurrence_id_1, visit_occurrence_id_2,
+             visit_start_datetime_1, visit_end_datetime_1,
+             visit_start_datetime_2, visit_end_datetime_2) %>%
+    mutate(visit_duration_1 = as.numeric(visit_end_datetime_1 - visit_start_datetime_1, units='days')) %>%
+    mutate(visit_duration_2 = as.numeric(visit_end_datetime_2 - visit_start_datetime_2, units='days')) %>%
+    mutate(visit_duration_all = case_when(!is.na(visit_duration_2) ~ visit_duration_1 + visit_duration_2,
+                                          TRUE ~ visit_duration_1)) %>%
+    group_by(person_id, index_date) %>%
+    summarise(total_unplanned_hosp_duration = sum(visit_duration_all),
+              median_unplanned_hosp_duration = median(visit_duration_all, na.rm=TRUE)) %>%
+    ungroup()
   
   #' cohort total visit days
   cohort_visit_days_1 <- unplanned_hosps %>%
@@ -348,6 +370,7 @@ summarize_unplanned_hosps <- function(unplanned_hosps,
   cohort_output <- cohort %>%
     distinct(person_id, index_date) %>%
     collect() %>%
+    left_join(cohort_total_visit_duration, by=c('person_id','index_date')) %>%
     left_join(cohort_unique_visits, by=c('person_id', 'index_date')) %>%
     left_join(cohort_any_outcome, by=c('person_id', 'index_date')) %>%
     left_join(cohort_visit_days_all, by=c('person_id', 'index_date')) %>%
@@ -390,6 +413,16 @@ find_and_summarize_planned_hosps <- function(cohort = results_tbl('bridge_cohort
     filter(date_diff > 0L) %>%
     filter(date_diff <= days_post) %>%
     collect()
+  
+  #' Total visit duration
+  cohort_total_visit_duration <- planned_hosps %>%
+    distinct(person_id, index_date, visit_occurrence_id,
+             visit_start_datetime, visit_end_datetime) %>%
+    mutate(visit_duration = as.numeric(visit_end_datetime - visit_start_datetime, units='days')) %>%
+    group_by(person_id, index_date) %>%
+    summarise(total_planned_hosp_duration = sum(visit_duration),
+              median_planned_hosp_duration = median(visit_duration, na.rm=TRUE)) %>%
+    ungroup()
 
   #' cohort total visit days
   cohort_visit_days <- planned_hosps %>%
@@ -427,6 +460,7 @@ find_and_summarize_planned_hosps <- function(cohort = results_tbl('bridge_cohort
     left_join(cohort_unique_visits, by=c('person_id', 'index_date')) %>%
     left_join(cohort_any_outcome, by=c('person_id', 'index_date')) %>%
     left_join(cohort_visit_days, by=c('person_id', 'index_date')) %>%
+    left_join(cohort_total_visit_duration, by=c('person_id', 'index_date')) %>%
     mutate(n_unique_planned_hosps = case_when(is.na(n_unique_planned_hosps) ~ 0L,
                                               TRUE ~ n_unique_planned_hosps)) %>%
     mutate(planned_visit_days = case_when(is.na(planned_visit_days) ~ 0L,
@@ -448,10 +482,12 @@ get_icu_visits <- function(cohort = results_tbl('bridge_cohort'),
   visit_tbl <- visit_tbl %>%
     filter(visit_start_date <= as.Date(study_end_date))
   
+  #' Note that this table contains duplicate rows! (Should be consolidated later on)
   cohort_icu <- cohort %>%
     inner_join(visit_tbl %>%
                  select(visit_occurrence_id, person_id,
-                        visit_start_date, visit_end_date), by=c('person_id')) %>%
+                        visit_start_date, visit_end_date,
+                        visit_start_datetime, visit_end_datetime), by=c('person_id')) %>%
     filter(date_diff('day', as.Date(index_date), as.Date(visit_start_date)) > 0L) %>%
     left_join(adt_tbl %>%
                 select(visit_occurrence_id, adt_occurrence_id, service_concept_id,
@@ -461,7 +497,14 @@ get_icu_visits <- function(cohort = results_tbl('bridge_cohort'),
     filter(date_diff('day', as.Date(index_date_end), as.Date(adt_date)) <= days_post) %>%
     collect()
   
-  
+  cohort_total_visit_duration <- cohort_icu %>%
+    distinct(person_id, index_date, visit_occurrence_id, visit_start_datetime, visit_end_datetime) %>%
+    mutate(visit_duration = as.numeric(visit_end_datetime - visit_start_datetime, units='days')) %>%
+    group_by(person_id, index_date) %>%
+    summarise(total_icu_visit_duration = sum(visit_duration),
+              median_icu_visit_duration = median(visit_duration, na.rm=TRUE)) %>%
+    ungroup()
+    
   cohort_visit_days <- cohort_icu %>%
     mutate(date = map2(visit_start_date, visit_end_date, ~ seq(.x, .y, by = "day"))) %>%
     distinct(person_id, index_date, date) %>%
@@ -490,6 +533,7 @@ get_icu_visits <- function(cohort = results_tbl('bridge_cohort'),
   cohort_icu_all <- cohort %>%
     distinct(person_id, index_date) %>%
     collect() %>%
+    left_join(cohort_total_visit_duration, by=c('person_id','index_date')) %>%
     left_join(cohort_visit_days, by=c('person_id', 'index_date')) %>%
     left_join(cohort_unique_visits, by=c('person_id', 'index_date')) %>%
     left_join(cohort_any_outcome, by=c('person_id', 'index_date')) %>%

@@ -39,3 +39,4 @@ bridge_session_v62<-argos$new('idd_session')$init_session(db_src = srcr(Sys.gete
                                                         retain_intermediates = TRUE)
 
 set_argos_default(bridge_session_v62)
+

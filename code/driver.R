@@ -321,6 +321,15 @@ output_tbl(demog, 'bridge_cohort_demographics')
 
 
 #' -----------------------------------------------------------------------------
+#' Get median duration of all inpatient and ICU stays within 180 days and
+#' 365 days of discharge
+#' -----------------------------------------------------------------------------
+
+
+
+
+
+#' -----------------------------------------------------------------------------
 #' Counts of all diagnosis codes
 #' -----------------------------------------------------------------------------
 
@@ -364,41 +373,53 @@ cohort_final <- results_tbl('bridge_cohort_demographics') %>%
                      any_unplanned_hosp_180 = any_unplanned_hosp,
                      unplanned_visit_days_180 = unplanned_visit_days,
                      min_unplanned_hosp_date_180 = min_unplanned_hosp_date,
-                     max_unplanned_hosp_date_180 = max_unplanned_hosp_date
+                     max_unplanned_hosp_date_180 = max_unplanned_hosp_date,
+                     total_unplanned_hosp_duration_180 = total_unplanned_hosp_duration,
+                     median_unplanned_hosp_duration_180 = median_unplanned_hosp_duration
                      ), by=c('person_id', 'index_date')) %>%
   left_join(results_tbl('cohort_w_planned_hosps_180') %>%
               rename(n_unique_planned_hosps_180 = n_unique_planned_hosps,
                      any_planned_hosp_180 = any_planned_hosp,
                      planned_visit_days_180 = planned_visit_days,
                      min_planned_hosp_date_180 = min_planned_hosp_date,
-                     max_planned_hosp_date_180 = max_planned_hosp_date
+                     max_planned_hosp_date_180 = max_planned_hosp_date,
+                     total_planned_hosp_duration_180 = total_planned_hosp_duration,
+                     median_planned_hosp_duration_180 = median_planned_hosp_duration
               ), by=c('person_id', 'index_date')) %>%
   left_join(results_tbl('cohort_w_icu_visits_180') %>%
               rename(icu_visit_days_180 = icu_visit_days,
                      n_unique_icu_stays_180 = n_unique_icu_stays,
                      any_icu_180 = any_icu,
                      min_adt_date_180 = min_adt_date,
-                     max_adt_date_180 = max_adt_date), by=c('person_id', 'index_date')) %>%
+                     max_adt_date_180 = max_adt_date,
+                     total_icu_visit_duration_180 = total_icu_visit_duration,
+                     median_icu_visit_duration_180 = median_icu_visit_duration), by=c('person_id', 'index_date')) %>%
 left_join(results_tbl('cohort_w_unplanned_hosps_365') %>%
             rename(n_unique_unplanned_hosps_365 = n_unique_unplanned_hosps,
                    any_unplanned_hosp_365 = any_unplanned_hosp,
                    unplanned_visit_days_365 = unplanned_visit_days,
                    min_unplanned_hosp_date_365 = min_unplanned_hosp_date,
-                   max_unplanned_hosp_date_365 = max_unplanned_hosp_date
+                   max_unplanned_hosp_date_365 = max_unplanned_hosp_date,
+                   total_unplanned_hosp_duration_365 = total_unplanned_hosp_duration,
+                   median_unplanned_hosp_duration_365 = median_unplanned_hosp_duration
             ), by=c('person_id', 'index_date')) %>%
   left_join(results_tbl('cohort_w_planned_hosps_365') %>%
               rename(n_unique_planned_hosps_365 = n_unique_planned_hosps,
                      any_planned_hosp_365 = any_planned_hosp,
                      planned_visit_days_365 = planned_visit_days,
                      min_planned_hosp_date_365 = min_planned_hosp_date,
-                     max_planned_hosp_date_365 = max_planned_hosp_date
+                     max_planned_hosp_date_365 = max_planned_hosp_date,
+                     total_planned_hosp_duration_365 = total_planned_hosp_duration,
+                     median_planned_hosp_duration_365 = median_planned_hosp_duration
               ), by=c('person_id', 'index_date')) %>%
   left_join(results_tbl('cohort_w_icu_visits_365') %>%
               rename(icu_visit_days_365 = icu_visit_days,
                      n_unique_icu_stays_365 = n_unique_icu_stays,
                      any_icu_365 = any_icu,
                      min_adt_date_365 = min_adt_date,
-                     max_adt_date_365 = max_adt_date), by=c('person_id', 'index_date'))
+                     max_adt_date_365 = max_adt_date,
+                     total_icu_visit_duration_365 = total_icu_visit_duration,
+                     median_icu_visit_duration_365 = median_icu_visit_duration), by=c('person_id', 'index_date'))
   
 
 output_tbl(cohort_final, 'bridge_cohort_w_outcomes')
