@@ -223,6 +223,36 @@ find_all_unplanned_hosps <- function(cohort = results_tbl('bridge_cohort'),
     filter(visit_concept_id==2000000048L) %>%
     distinct(visit_occurrence_id)
   
+  #' Look at ED-to-inpatient visits based on time: ED visits occurring within 48 hours
+  #' before inpatient visits
+  ed_to_ip_manual <- visit_tbl %>%
+    filter(visit_concept_id %in% c(9203L)) %>%
+    distinct(visit_occurrence_id, person_id, visit_start_datetime, visit_end_datetime) %>%
+    rename(ed_visit_occurrence_id=visit_occurrence_id,
+           ed_visit_start_datetime=visit_start_datetime,
+           ed_visit_end_datetime=visit_end_datetime) %>%
+    left_join(visit_tbl %>%
+                filter(visit_concept_id %in% ip_visit_concepts) %>%
+                select(visit_occurrence_id, person_id, visit_start_datetime, visit_end_datetime) %>%
+                rename(ip_visit_occurrence_id=visit_occurrence_id,
+                       ip_visit_start_datetime=visit_start_datetime,
+                       ip_visit_end_datetime=visit_end_datetime), by=c('person_id')) %>%
+    # distinct(person_id, ip_visit_occurrence_id, ip_visit_start_datetime, ip_visit_end_datetime,
+    #          ed_visit_occurrence_id, ed_visit_start_datetime, ed_visit_end_datetime) %>%
+    mutate(date_diff = date_diff('minute', ed_visit_end_datetime, ip_visit_start_datetime)/60) %>%
+    filter(date_diff >= 0L) %>%
+    filter(date_diff < 48L) %>%
+    group_by(person_id, ip_visit_occurrence_id, ip_visit_start_datetime, ip_visit_end_datetime) %>%
+    slice_max(ed_visit_end_datetime, n=1, with_ties=FALSE) %>%
+    ungroup() %>%
+    # group_by(person_id, ed_visit_occurrence_id, ed_visit_start_datetime, ed_visit_end_datetime) %>%
+    # slice_min(ip_visit_start_datetime, n=1, with_ties=FALSE) %>%
+    # ungroup() %>%
+    select(ed_visit_occurrence_id,
+           ip_visit_occurrence_id) %>%
+    rename(visit_occurrence_id_1=ed_visit_occurrence_id,
+           visit_occurrence_id_2=ip_visit_occurrence_id)
+  
   #' Look at ED-to-inpatient visits as they're included in the fact-relationship table
   #' Only exists for CHOP, Nemours, Colorado and Nationwide
   occurs_before <- fact_relationship %>%
@@ -243,6 +273,7 @@ find_all_unplanned_hosps <- function(cohort = results_tbl('bridge_cohort'),
     filter(visit_concept_id_1==9203L) %>%
     filter(visit_concept_id_2 %in% ip_visit_concepts) %>%
     distinct(visit_occurrence_id_1, visit_occurrence_id_2)
+  
   
   #' I think all of these records are included in the "occurs_before" output above
   occurs_after <- fact_relationship %>%
@@ -274,6 +305,8 @@ find_all_unplanned_hosps <- function(cohort = results_tbl('bridge_cohort'),
   #' all_ed_to_ip
   all_ed_to_ip <- ed_to_ip_cid %>%
     full_join(occurs_before_after, by=c('visit_occurrence_id'='visit_occurrence_id_1')) %>%
+    full_join(ed_to_ip_manual, by=c('visit_occurrence_id'='visit_occurrence_id_1',
+                                    'visit_occurrence_id_2')) %>%
     left_join(visit_tbl %>%
                 select(visit_occurrence_id, person_id,
                        visit_start_date, visit_end_date,
@@ -332,11 +365,13 @@ summarize_unplanned_hosps <- function(unplanned_hosps,
   #' cohort total visit days
   cohort_visit_days_1 <- unplanned_hosps %>%
     mutate(date = map2(visit_start_date_1, visit_end_date_1, ~ seq(.x, .y, by = "day"))) %>%
+    unnest(date) %>%
     distinct(person_id, index_date, date)
   
   cohort_visit_days_2 <- unplanned_hosps %>%
     filter(!is.na(visit_start_date_2)) %>%
     mutate(date = map2(visit_start_date_2, visit_end_date_2, ~ seq(.x, .y, by = "day"))) %>%
+    unnest(date) %>%
     distinct(person_id, index_date, date)
   
   cohort_visit_days_all <- cohort_visit_days_1 %>%
@@ -409,7 +444,7 @@ find_and_summarize_planned_hosps <- function(cohort = results_tbl('bridge_cohort
     left_join(visit_tbl, by=c('person_id')) %>%
     filter(visit_concept_id %in% ip_visit_concepts) %>%
     anti_join(unplanned_hosp_vid, by=c('visit_occurrence_id')) %>%
-    mutate(date_diff = date_diff('day', as.Date(index_date), as.Date(visit_start_date))) %>%
+    mutate(date_diff = date_diff('day', as.Date(index_date_end), as.Date(visit_start_date))) %>% #' should probably be using the index_date_end here and not index_date (so it's discharge date)
     filter(date_diff > 0L) %>%
     filter(date_diff <= days_post) %>%
     collect()
@@ -428,6 +463,7 @@ find_and_summarize_planned_hosps <- function(cohort = results_tbl('bridge_cohort
   cohort_visit_days <- planned_hosps %>%
     filter(!(as.Date(visit_start_date) > as.Date(visit_end_date))) %>%
     mutate(date = map2(visit_start_date, visit_end_date, ~ seq(.x, .y, by = "day"))) %>%
+    unnest(date) %>%
     distinct(person_id, index_date, date) %>%
     group_by(person_id, index_date) %>%
     summarise(planned_visit_days = n()) %>%
@@ -507,6 +543,7 @@ get_icu_visits <- function(cohort = results_tbl('bridge_cohort'),
     
   cohort_visit_days <- cohort_icu %>%
     mutate(date = map2(visit_start_date, visit_end_date, ~ seq(.x, .y, by = "day"))) %>%
+    unnest(date) %>%
     distinct(person_id, index_date, date) %>%
     group_by(person_id, index_date) %>%
     summarise(icu_visit_days = n()) %>%

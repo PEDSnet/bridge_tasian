@@ -63,6 +63,7 @@ in_person_visit_concepts <- c(9201L, 2000001532L,
                               9203L,
                               9202L, 581399L, 44814710L, 42898160L
                               )
+exclude_sites <- c('texas')
 
 #' -----------------------------------------------------------------------------
 #' Attrition Steps
@@ -83,11 +84,12 @@ person <- cdm_tbl("person") %>%
     !is.na(birth_date),
     birth_date <= !!today,
     birth_date >= !!min_birth,
-    gender_concept_id %in% c(8532, 8507))
+    gender_concept_id %in% c(8532, 8507)) %>%
+  filter(!site %in% c(exclude_sites))
 
 attr_site <- count_bysite(tbl = person,
                          countcol = "person_id",
-                         stepname = paste0('Valid patients in PEDSnet db ',current_db_version, ' (birthdate, valid sex)'),
+                         stepname = paste0('Valid patients in PEDSnet db ',current_db_version, ' (birthdate, valid sex), excluding TCH'),
                          stepnum = 1L)
 
 #' -----------------------------------------------------------------------------
@@ -249,6 +251,9 @@ output_tbl(dx_type_info, 'bridge_cohort_w_dx_type')
 
 #' -----------------------------------------------------------------------------
 #' Unplanned hospitalizations (preceded by an ED visit)
+#' 
+#' Note: Texas has the lowest number of 2000000048 visits (ED to IP)-- probably an
+#' issue with the visit roll-up. Would require future investigation.
 
 unplanned_hosps_180 <- find_all_unplanned_hosps(cohort = results_tbl('bridge_cohort'),
                                             ip_visit_concepts = ip_visit_concepts,
@@ -258,7 +263,7 @@ unplanned_hosps_180 <- find_all_unplanned_hosps(cohort = results_tbl('bridge_coh
 unplanned_hosps_summary_180 <- summarize_unplanned_hosps(unplanned_hosps = unplanned_hosps_180,
                                                      cohort = results_tbl('bridge_cohort'))
 
-output_tbl(unplanned_hosps_summary_180, 'cohort_w_unplanned_hosps_180')
+output_tbl(unplanned_hosps_summary_180, 'cohort_w_unplanned_hosps_180_2')
 
 
 unplanned_hosps_365 <- find_all_unplanned_hosps(cohort = results_tbl('bridge_cohort'),
@@ -269,7 +274,7 @@ unplanned_hosps_365 <- find_all_unplanned_hosps(cohort = results_tbl('bridge_coh
 unplanned_hosps_summary_365 <- summarize_unplanned_hosps(unplanned_hosps = unplanned_hosps_365,
                                                          cohort = results_tbl('bridge_cohort'))
 
-output_tbl(unplanned_hosps_summary_365, 'cohort_w_unplanned_hosps_365')
+output_tbl(unplanned_hosps_summary_365, 'cohort_w_unplanned_hosps_365_2')
 
 #' -----------------------------------------------------------------------------
 #' Planned hospitalizations (without a preceding ED visit)
@@ -281,7 +286,7 @@ planned_hosps_180 <- find_and_summarize_planned_hosps(cohort = results_tbl('brid
                                                   study_end_date = as.Date(study_end_date))
 
 
-output_tbl(planned_hosps_180, 'cohort_w_planned_hosps_180')
+output_tbl(planned_hosps_180, 'cohort_w_planned_hosps_180_2')
 
 
 planned_hosps_365 <- find_and_summarize_planned_hosps(cohort = results_tbl('bridge_cohort'),
@@ -291,7 +296,7 @@ planned_hosps_365 <- find_and_summarize_planned_hosps(cohort = results_tbl('brid
                                                       study_end_date = as.Date(study_end_date))
 
 
-output_tbl(planned_hosps_365, 'cohort_w_planned_hosps_365')
+output_tbl(planned_hosps_365, 'cohort_w_planned_hosps_365_2')
 
 #' -----------------------------------------------------------------------------
 #' ICU stays
@@ -368,7 +373,7 @@ write_csv(results_tbl('bridge_cond_pat_code_counts') %>% as_data_frame(), 'specs
 cohort_final <- results_tbl('bridge_cohort_demographics') %>%
   left_join(bridge_cond_counts, by=c('person_id')) %>%
   left_join(results_tbl('bridge_cohort_w_dx_type'), by=c('person_id', 'index_date')) %>%
-  left_join(results_tbl('cohort_w_unplanned_hosps_180') %>%
+  left_join(results_tbl('cohort_w_unplanned_hosps_180_2') %>%
               rename(n_unique_unplanned_hosps_180 = n_unique_unplanned_hosps,
                      any_unplanned_hosp_180 = any_unplanned_hosp,
                      unplanned_visit_days_180 = unplanned_visit_days,
@@ -377,7 +382,7 @@ cohort_final <- results_tbl('bridge_cohort_demographics') %>%
                      total_unplanned_hosp_duration_180 = total_unplanned_hosp_duration,
                      median_unplanned_hosp_duration_180 = median_unplanned_hosp_duration
                      ), by=c('person_id', 'index_date')) %>%
-  left_join(results_tbl('cohort_w_planned_hosps_180') %>%
+  left_join(results_tbl('cohort_w_planned_hosps_180_2') %>%
               rename(n_unique_planned_hosps_180 = n_unique_planned_hosps,
                      any_planned_hosp_180 = any_planned_hosp,
                      planned_visit_days_180 = planned_visit_days,
@@ -394,7 +399,7 @@ cohort_final <- results_tbl('bridge_cohort_demographics') %>%
                      max_adt_date_180 = max_adt_date,
                      total_icu_visit_duration_180 = total_icu_visit_duration,
                      median_icu_visit_duration_180 = median_icu_visit_duration), by=c('person_id', 'index_date')) %>%
-left_join(results_tbl('cohort_w_unplanned_hosps_365') %>%
+left_join(results_tbl('cohort_w_unplanned_hosps_365_2') %>%
             rename(n_unique_unplanned_hosps_365 = n_unique_unplanned_hosps,
                    any_unplanned_hosp_365 = any_unplanned_hosp,
                    unplanned_visit_days_365 = unplanned_visit_days,
@@ -403,7 +408,7 @@ left_join(results_tbl('cohort_w_unplanned_hosps_365') %>%
                    total_unplanned_hosp_duration_365 = total_unplanned_hosp_duration,
                    median_unplanned_hosp_duration_365 = median_unplanned_hosp_duration
             ), by=c('person_id', 'index_date')) %>%
-  left_join(results_tbl('cohort_w_planned_hosps_365') %>%
+  left_join(results_tbl('cohort_w_planned_hosps_365_2') %>%
               rename(n_unique_planned_hosps_365 = n_unique_planned_hosps,
                      any_planned_hosp_365 = any_planned_hosp,
                      planned_visit_days_365 = planned_visit_days,
@@ -422,7 +427,7 @@ left_join(results_tbl('cohort_w_unplanned_hosps_365') %>%
                      median_icu_visit_duration_365 = median_icu_visit_duration), by=c('person_id', 'index_date'))
   
 
-output_tbl(cohort_final, 'bridge_cohort_w_outcomes')
+output_tbl(cohort_final, 'bridge_cohort_w_outcomes_2')
 
 
 
