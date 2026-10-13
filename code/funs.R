@@ -64,7 +64,7 @@ get_conds <- function(cohort,
     full_join(cond_src_info, by=c('condition_occurrence_id')) %>%
     left_join(cond_tbl, by=c('condition_occurrence_id')) %>%
     mutate(condition_type=case_when(cond_concept_id_info==1L ~ condition_concept_id,
-                                    is.na(cond_concept_id_info) &&
+                                    is.na(cond_concept_id_info) &
                                       cond_source_concept_id_info==1L ~ condition_source_concept_id)) %>%
     left_join(codes %>% distinct(concept_id, dx_type), by=c('condition_type'='concept_id')) %>%
     select(-cond_concept_id_info, -cond_source_concept_id_info) %>%
