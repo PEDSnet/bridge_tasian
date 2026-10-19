@@ -4,7 +4,7 @@
 | Folder    | File                            | Purpose                                      |
 | :-------- | :--------------------------     | :---------------------------------           |
 | setup     | setup_connect.R                 | Set up database connection                   |
-| setup     | setup_connect.R                 | Patch to connect to trino db                 |
+| setup     | trino_patch.R                   | Patch to connect to trino db                 |
 | code      | driver.R                        | Code to perform BRIDGE query                 |
 | code      | funs.R                          | Functions called in driver.R                 |
 | specs     | BRIDGE query codes_v3.xlsx      | BRIDGE query codesets                        |
