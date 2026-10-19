@@ -1,7 +1,7 @@
 # BRIDGE Feasibility Query (Greg Tasian)
 ### Completed September 2, 2026
 
-| Folder    | R file                          | Purpose                                      |
+| Folder    | File                            | Purpose                                      |
 | :-------- | :--------------------------     | :---------------------------------           |
 | setup     | setup_connect.R                 | Set up database connection                   |
 | setup     | setup_connect.R                 | Patch to connect to trino db                 |
