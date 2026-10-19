@@ -206,7 +206,15 @@ get_core_demographics <- function(cohort,
 }
 
 
-
+#' Find all unplanned hospitalizations after a patient's index_date_end:
+#' ED-to-inpatient visits
+#' ED visits occurring within 48 hours before inpatient visits
+#' @param ip_visit_concepts list of inpatient visit_concept_ids
+#' @param days_post max number of days after index_date_end
+#' @param study_end_date end date of the study
+#' @param visit_tbl visit_occurrence CDM table
+#' @param fact_relationship fact_relationship CDM table
+#' 
 find_all_unplanned_hosps <- function(cohort = results_tbl('bridge_cohort'),
                                      ip_visit_concepts = ip_visit_concepts,
                                      days_post,
@@ -340,7 +348,11 @@ find_all_unplanned_hosps <- function(cohort = results_tbl('bridge_cohort'),
   return(cohort_w_outcome)
 }
 
-
+#' Summarize unplanned hospitalizations identified, to get:
+#' Visit duration
+#' Total visit days
+#' Number of unique visits
+#' Any outcome (binary variable)
 summarize_unplanned_hosps <- function(unplanned_hosps,
                                       cohort = results_tbl('bridge_cohort')
     ) {
@@ -419,7 +431,20 @@ summarize_unplanned_hosps <- function(unplanned_hosps,
 }
 
 
-
+#' Find and summarize planned hospitalizations
+#' Planned hospitalizations: inpatient visits
+#' Summarize unplanned hospitalizations identified, to get:
+#' Visit duration
+#' Total visit days
+#' Number of unique visits
+#' Any outcome (binary variable)
+#' @param cohort input cohort
+#' @param unplanned_hosps table of unplanned hospitalizations (to anti_join to planned hospitalizations)
+#' @param ip_visit_concepts list of inpatient visit_concept_ids
+#' @param days_post max number of days after the index_date_end
+#' @param study_end_date end date of the study
+#' @param visit_tbl visit_occurrence CDM table
+#'
 find_and_summarize_planned_hosps <- function(cohort = results_tbl('bridge_cohort'),
                                    unplanned_hosps = unplanned_hosps,
                                    ip_visit_concepts = ip_visit_concepts,
